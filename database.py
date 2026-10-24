@@ -3,7 +3,11 @@ import os
 
 import mysql.connector
 import streamlit as st
+from dotenv import load_dotenv
 from mysql.connector import Error
+
+# Load environment variables from the project's .env file.
+load_dotenv()
 
 
 def get_connection():
@@ -12,7 +16,7 @@ def get_connection():
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", "3306")),
         "user": os.getenv("DB_USER", ""),
-        "password": os.getenv("DB_PASSWORD", "12345678"),
+        "password": os.getenv("DB_PASSWORD", ""),
         "database": os.getenv("DB_NAME", "crm_db"),
     }
 
