@@ -1,7 +1,9 @@
 
 import streamlit as st
 import pandas as pd
-
+from lead_backend import get_leads
+from task_backend import get_tasks
+from opportunity_backend import get_opportunities
 from backend import (
     add_customer,
     get_customers,
@@ -206,34 +208,398 @@ page = st.sidebar.radio("Navigation", allowed_pages)
 
 # ==================================================
 # CUSTOMER DASHBOARD
+
+# ==================================================
+# PROFESSIONAL CRM DASHBOARD
+# ==================================================
+
+# ==================================================
+# PROFESSIONAL CRM DASHBOARD
+# ==================================================
+
+# ==================================================
+# PROFESSIONAL CRM DASHBOARD
 # ==================================================
 if page == "Dashboard":
 
-    st.subheader("CRM Dashboard")
+    st.subheader("CRM Overview")
+    st.caption(
+        "Monitor customers, leads, tasks, and sales opportunities "
+        "from one dashboard."
+    )
 
     try:
+        # ------------------------------------------
+        # 1. Fetch existing CRM data
+        # ------------------------------------------
         customers = get_customers()
         active_customers = get_customers(status="active")
         archived_customers = get_customers(status="archived")
 
+        leads = get_leads()
+        tasks = get_tasks()
+        overdue_tasks = get_tasks(due_filter="overdue")
+        opportunities = get_opportunities()
+
+        customer_df = pd.DataFrame(customers)
+
+        # ------------------------------------------
+        # 2. Calculate customer metrics
+        # ------------------------------------------
+        total_customers = len(customers)
+        active_count = len(active_customers)
+        archived_count = len(archived_customers)
+
+        active_percentage = (
+            active_count / total_customers * 100
+            if total_customers else 0
+        )
+
+        # ------------------------------------------
+        # 3. Calculate lead metrics
+        # ------------------------------------------
+        lead_statuses = [
+            "new", "contacted", "qualified",
+            "proposal", "converted", "lost"
+        ]
+
+        total_leads = len(leads)
+
+        converted_leads = sum(
+            1 for lead in leads
+            if lead.get("lead_status") == "converted"
+        )
+
+        lead_conversion_rate = (
+            converted_leads / total_leads * 100
+            if total_leads else 0
+        )
+
+        lead_counts = {
+            status: sum(
+                1 for lead in leads
+                if lead.get("lead_status") == status
+            )
+            for status in lead_statuses
+        }
+
+        # ------------------------------------------
+        # 4. Calculate task metrics
+        # ------------------------------------------
+        task_statuses = [
+            "pending", "in_progress", "completed", "cancelled"
+        ]
+
+        task_counts = {
+            status: sum(
+                1 for task in tasks
+                if task.get("status") == status
+            )
+            for status in task_statuses
+        }
+
+        total_tasks = len(tasks)
+        overdue_count = len(overdue_tasks)
+        completed_count = task_counts["completed"]
+
+        # ------------------------------------------
+        # 5. Calculate opportunity metrics
+        # ------------------------------------------
+        won_opportunities = [
+            item for item in opportunities
+            if item.get("stage") == "won"
+        ]
+
+        lost_opportunities = [
+            item for item in opportunities
+            if item.get("stage") == "lost"
+        ]
+
+        open_opportunities = [
+            item for item in opportunities
+            if item.get("stage") not in ("won", "lost")
+        ]
+
+        pipeline_value = sum(
+            float(item.get("amount") or 0)
+            for item in open_opportunities
+        )
+
+        won_value = sum(
+            float(item.get("amount") or 0)
+            for item in won_opportunities
+        )
+
+        # ------------------------------------------
+        # 6. Customer Summary
+        # ------------------------------------------
+        st.markdown("### Customer Summary")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric("Total Customers", total_customers)
+        col2.metric("Active Customers", active_count)
+        col3.metric("Archived Customers", archived_count)
+        col4.metric(
+            "Active Customer Rate",
+            f"{active_percentage:.1f}%"
+        )
+
+        st.divider()
+
+        # ------------------------------------------
+        # 7. Lead Summary
+        # ------------------------------------------
+        st.markdown("### Lead Summary")
+
         col1, col2, col3 = st.columns(3)
 
-        col1.metric("Total Customers", len(customers))
-        col2.metric("Active Customers", len(active_customers))
-        col3.metric("Archived Customers", len(archived_customers))
+        col1.metric("Total Leads", total_leads)
+        col2.metric("Converted Leads", converted_leads)
+        col3.metric(
+            "Lead Conversion Rate",
+            f"{lead_conversion_rate:.1f}%"
+        )
 
-        if customers:
-            st.subheader("Recent Customers")
+        st.markdown("#### Lead Status")
+
+        lead_chart_df = pd.DataFrame({
+            "Status": lead_statuses,
+            "Leads": [lead_counts[s] for s in lead_statuses],
+        }).set_index("Status")
+
+        st.bar_chart(
+            lead_chart_df,
+            horizontal=True,
+            use_container_width=True,
+        )
+
+        st.divider()
+
+        # ------------------------------------------
+        # 8. Task Summary
+        # ------------------------------------------
+        st.markdown("### Task Summary")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric("Total Tasks", total_tasks)
+        col2.metric("Pending Tasks", task_counts["pending"])
+        col3.metric("In Progress", task_counts["in_progress"])
+        col4.metric("Completed Tasks", completed_count)
+
+        st.metric("Overdue Tasks", overdue_count)
+
+        st.markdown("#### Task Status")
+
+        task_chart_df = pd.DataFrame({
+            "Status": task_statuses,
+            "Tasks": [task_counts[s] for s in task_statuses],
+        }).set_index("Status")
+
+        st.bar_chart(
+            task_chart_df,
+            horizontal=True,
+            use_container_width=True,
+        )
+
+        st.divider()
+
+        # ------------------------------------------
+        # 9. Opportunity Summary
+        # ------------------------------------------
+        st.markdown("### Opportunity Summary")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Total Opportunities",
+            len(opportunities)
+        )
+        col2.metric(
+            "Open Opportunities",
+            len(open_opportunities)
+        )
+        col3.metric(
+            "Won Deals",
+            len(won_opportunities)
+        )
+        col4.metric(
+            "Lost Deals",
+            len(lost_opportunities)
+        )
+
+        col5, col6 = st.columns(2)
+
+        col5.metric(
+            "Open Pipeline Value",
+            f"{pipeline_value:,.2f}"
+        )
+        col6.metric(
+            "Won Deal Value",
+            f"{won_value:,.2f}"
+        )
+
+        if opportunities:
+            stage_names = sorted({
+                str(item.get("stage", "unknown"))
+                for item in opportunities
+            })
+
+            stage_counts = {
+                stage: sum(
+                    1 for item in opportunities
+                    if item.get("stage", "unknown") == stage
+                )
+                for stage in stage_names
+            }
+
+            opportunity_chart_df = pd.DataFrame({
+                "Stage": stage_names,
+                "Opportunities": [
+                    stage_counts[stage] for stage in stage_names
+                ],
+            }).set_index("Stage")
+
+            st.markdown("#### Opportunity Stages")
+            st.bar_chart(
+                opportunity_chart_df,
+                horizontal=True,
+                use_container_width=True,
+            )
+        else:
+            st.info("Create an opportunity to see pipeline insights.")
+
+        st.divider()
+
+        # ------------------------------------------
+        # 10. Recent Customers and Customer Status
+        # ------------------------------------------
+        left_col, right_col = st.columns(
+            [2, 1],
+            gap="large"
+        )
+
+        with left_col:
+            st.markdown("### Recent Customers")
+
+            if not customer_df.empty:
+
+                if "customer_id" in customer_df.columns:
+                    recent_df = customer_df.sort_values(
+                        "customer_id",
+                        ascending=False
+                    ).head(10)
+                else:
+                    recent_df = customer_df.head(10)
+
+                preferred_columns = [
+                    "customer_id",
+                    "first_name",
+                    "last_name",
+                    "company",
+                    "email",
+                ]
+
+                display_columns = [
+                    column for column in preferred_columns
+                    if column in recent_df.columns
+                ]
+
+                if not display_columns:
+                    display_columns = list(recent_df.columns)
+
+                display_df = recent_df[display_columns].copy()
+
+                if "email" in display_df.columns:
+                    display_df["email"] = display_df["email"].apply(
+                        lambda value: (
+                            str(value)[:22] + "..."
+                            if pd.notna(value)
+                            and len(str(value)) > 25
+                            else value
+                        )
+                    )
+
+                column_labels = {
+                    "customer_id": "ID",
+                    "first_name": "First Name",
+                    "last_name": "Last Name",
+                    "company": "Company",
+                    "email": "Email",
+                }
+
+                display_df = display_df.rename(
+                    columns=column_labels
+                )
+
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=350,
+                )
+
+                st.caption(
+                    "Showing up to 10 recent customers."
+                )
+
+            else:
+                st.info(
+                    "No customers found. Use Add Customer "
+                    "to register your first customer."
+                )
+
+        with right_col:
+            st.markdown("### Customer Status")
+
+            status_df = pd.DataFrame({
+                "Status": ["Active", "Archived"],
+                "Customers": [active_count, archived_count],
+            }).set_index("Status")
+
+            if total_customers:
+                st.bar_chart(
+                    status_df,
+                    horizontal=True,
+                    use_container_width=True,
+                )
+            else:
+                st.info("Customer status data will appear here.")
+
+        st.divider()
+
+        # ------------------------------------------
+        # 11. Recent Leads
+        # ------------------------------------------
+        st.markdown("### Recent Leads")
+
+        if leads:
+            leads_df = pd.DataFrame(leads)
+
+            if "lead_id" in leads_df.columns:
+                leads_df = leads_df.sort_values(
+                    "lead_id",
+                    ascending=False
+                )
+
             st.dataframe(
-                pd.DataFrame(customers).head(10),
+                leads_df.head(5),
                 use_container_width=True,
                 hide_index=True,
             )
         else:
-            st.info("No customers found. Add your first customer.")
+            st.info("No leads found yet.")
 
-    except Exception:
-        st.error("Unable to load the dashboard.")
+    except Exception as exc:
+        st.error("Unable to load the CRM dashboard.")
+        st.caption(
+            "Check the database connection and CRM backend functions. "
+            f"Technical detail: {exc}"
+        )
+
+
+
 
 
 # ==================================================
@@ -290,6 +656,9 @@ elif page == "Add Customer":
                     "Unable to add customer. Check the details "
                     "and whether the email already exists."
                 )
+
+
+
 
 
 # ==================================================
